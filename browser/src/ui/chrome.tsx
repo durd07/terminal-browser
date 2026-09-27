@@ -16,6 +16,7 @@ import {
   ReviewToolbar,
 } from "./record-bar";
 import { TabStrip } from "./tab-strip";
+import { VimHelpCard, VimIndicator } from "./vim";
 import { makeTheme, mix, withAlpha } from "./theme";
 import type { Theme } from "./theme";
 import { usePulse } from "./pulse";
@@ -33,6 +34,7 @@ import type {
   TabActions,
   TabRow,
   TabView,
+  VimView,
 } from "./types";
 
 export function Chrome({
@@ -59,6 +61,7 @@ export function Chrome({
   devtools,
   profiling,
   grabActive,
+  vim,
 }: {
   state: WebViewState;
   actions: ChromeActions;
@@ -83,6 +86,7 @@ export function Chrome({
   devtools: DevtoolsView | null;
   profiling: boolean;
   grabActive: boolean;
+  vim: VimView | null;
 }) {
   const theme = useMemo(() => makeTheme(colors), [colors]);
   const progress = useProgress(state.loading);
@@ -189,6 +193,10 @@ export function Chrome({
       {palette && <PaletteCard view={palette} actions={actions} layout={layout} theme={theme} />}
       {settings && (
         <SettingsCard view={settings} actions={actions.settings} layout={layout} theme={theme} />
+      )}
+      {vim && <VimIndicator view={vim} layout={layout} theme={theme} />}
+      {vim?.help && (
+        <VimHelpCard layout={layout} theme={theme} onClose={actions.vimHelpClose} />
       )}
     </Box>
   );
