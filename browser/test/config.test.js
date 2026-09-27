@@ -77,6 +77,15 @@ test("keymap reports conflicts between commands sharing a chord", () => {
   assert.deepEqual(new Keymap({}, { noSuper: false }).conflicts("tab.close"), []);
 });
 
+test("vim toggle defaults to ctrl+m and stays rebindable", () => {
+  const defaults = new Keymap({}, { noSuper: false });
+  assert.deepEqual(defaults.labels("vim.toggle"), ["ctrl+m"]);
+  assert.equal(defaults.match(press("m", { ctrl: true })), "vim.toggle");
+  const rebound = new Keymap({ "vim.toggle": ["ctrl+;"] }, { noSuper: false });
+  assert.equal(rebound.match(press(";", { ctrl: true })), "vim.toggle");
+  assert.equal(rebound.match(press("m", { ctrl: true })), null);
+});
+
 test("config store round trips settings and shortcuts", () => {
   const store = tempStore();
   assert.deepEqual(store.load().errors, []);

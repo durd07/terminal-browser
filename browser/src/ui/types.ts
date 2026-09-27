@@ -37,6 +37,14 @@ export interface DownloadView {
   state: "progressing" | "done" | "failed";
 }
 
+export type VimMode = "normal" | "insert" | "hints";
+
+export interface VimView {
+  mode: VimMode;
+  pending: string;
+  help: boolean;
+}
+
 export type PageMenuIcon =
   | { kind: "path"; d: string; tint?: "red"; weight?: number }
   | { kind: "image"; src: string };
@@ -134,6 +142,7 @@ export interface ChromeActions {
   devtoolsDividerHover(hovering: boolean): void;
   pageMenuAction(id: string): void;
   pageMenuClose(): void;
+  vimHelpClose(): void;
   settings: SettingsActions;
   record: RecordActions;
 }

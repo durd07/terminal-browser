@@ -185,6 +185,29 @@ export class TabManager {
     return this.tabs.some((tab) => tab.id === id);
   }
 
+  step(delta: number) {
+    const at = this.tabs.findIndex((tab) => tab.id === this.activeId);
+    if (at < 0) return;
+    const count = this.tabs.length;
+    this.activate(this.tabs[(((at + delta) % count) + count) % count].id);
+  }
+
+  edge(last: boolean) {
+    const tab = last ? this.tabs.at(-1) : this.tabs[0];
+    if (tab) this.activate(tab.id);
+  }
+
+  move(delta: number) {
+    const at = this.tabs.findIndex((tab) => tab.id === this.activeId);
+    if (at < 0) return;
+    const to = Math.min(this.tabs.length - 1, Math.max(0, at + delta));
+    if (to === at) return;
+    const [tab] = this.tabs.splice(at, 1);
+    this.tabs.splice(to, 0, tab);
+    this.host.onTabsChanged();
+    this.host.requestRender();
+  }
+
   touchAgentControl(id: number): boolean {
     const tab = this.get(id);
     if (!tab) return false;

@@ -64,7 +64,18 @@ terminal-browser upgrade # upgrade to the latest version
 | Record page (start/stop) | ctrl+r | ctrl+shift+r |
 | Complete recording review | ctrl+enter | ctrl+enter |
 | Start element selection (send to agent) | ctrl+g | ctrl+g |
+| Vim mode (on/off) | ctrl+m | ctrl+m |
 | Close popup / overlay | escape | escape |
+
+### Vim mode
+
+Vim mode turns the keyboard into Vimium-style browsing: `f` labels every link on
+screen so you can type its letters to click it, `j` and `k` scroll, `H` and `L`
+go back and forward, `t` and `x` open and close tabs. Typing into a text field
+still works, because focusing one switches to insert mode until you press
+escape. Press `?` while it is on for the full list. The toggle is an ordinary
+shortcut named `vim mode`, so you can rebind it from settings or the shortcuts
+file like any other command.
 
 
 

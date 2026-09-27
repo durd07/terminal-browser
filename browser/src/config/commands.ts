@@ -27,6 +27,7 @@ export const COMMANDS = {
   "devtools.console": { label: "devtools console", keys: platform(["cmd+alt+j"], ["ctrl+alt+j"]) },
   "record.toggle": { label: "record page", keys: platform(["ctrl+r"], ["ctrl+shift+r"]) },
   "grab.toggle": { label: "send to agent", keys: shared(["ctrl+g"]) },
+  "vim.toggle": { label: "vim mode", keys: shared(["ctrl+m"]) },
   "zoom.in": { label: "zoom in", keys: platform(["cmd+=", "ctrl+="], ["ctrl+="]) },
   "zoom.out": { label: "zoom out", keys: platform(["cmd+-", "ctrl+-"], ["ctrl+-"]) },
   "zoom.reset": { label: "reset zoom", keys: platform(["cmd+0", "ctrl+0"], ["ctrl+0"]) },

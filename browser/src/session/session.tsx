@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import net from "node:net";
 import path from "node:path";
 
-import { app } from "electron";
+import { app, clipboard } from "electron";
 import { createRoot } from "@zenbu-labs/pixel";
 import type {
   DevtoolsDock,
@@ -67,6 +67,8 @@ import { SettingsManager } from "./settings";
 import { fetchSuggestions } from "./suggest";
 import { TabManager } from "./tabs";
 import type { Tab } from "./tabs";
+import { Vim } from "../vim/vim";
+import { VimPage } from "../vim/page";
 
 export interface SessionContext {
   tty?: string;
@@ -220,6 +222,40 @@ class Session {
   private records = new Map<number, RecordSession>();
   private grabs = new Map<number, Grab>();
   private copyWatchers = new Map<number, CopyOnSelect>();
+  private vimPages = new Map<number, VimPage>();
+  private closedTabs: string[] = [];
+  private readonly vim = new Vim({
+    page: () => this.activeVimPage(),
+    back: () => this.tabs.activeHandle?.back(),
+    forward: () => this.tabs.activeHandle?.forward(),
+    reload: () => {
+      this.activeRecord()?.reloaded();
+      this.tabs.activeHandle?.reload();
+    },
+    currentUrl: () => this.tabs.activeState?.url ?? "",
+    navigate: (url) => this.tabs.activeHandle?.loadURL(this.resolveInput(url)),
+    openUrlPrompt: (newTab) => (newTab ? this.openNewTabModal() : this.openUrlEdit()),
+    newTab: (url) => this.tabs.create(url ? this.resolveInput(url) : this.defaultUrl),
+    closeTab: () => {
+      const tab = this.tabs.active;
+      if (tab) this.closeOrShutdown(tab.id);
+    },
+    restoreTab: () => this.restoreClosedTab(),
+    duplicateTab: () => {
+      const url = this.tabs.activeState?.url;
+      if (url) this.tabs.create(url);
+    },
+    stepTab: (delta) => this.tabs.step(delta),
+    edgeTab: (last) => this.tabs.edge(last),
+    moveTab: (delta) => this.tabs.move(delta),
+    openFind: () => this.openFind(),
+    findNext: (forward) => this.tabs.activeHandle?.findNext(forward),
+    zoom: (direction) => this.applyZoom(direction),
+    copy: (text) => this.root?.setClipboard(text),
+    clipboard: () => clipboard.readText(),
+    toast: (text, state) => this.showToast(text, state),
+    render: () => this.render(),
+  });
   private readonly copyOnSelect: boolean;
   private readonly grabIcon = bundledAsset(path.join("react-grab", "logo.png"));
   private readonly agentPanes: AgentPaneFinder;
@@ -256,6 +292,13 @@ class Session {
       {
         onActivated: () => {
           this.pageMenu = null;
+          if (this.vim.enabled) {
+            const id = this.tabs.active?.id;
+            const page = this.activeVimPage();
+            void page?.editableNow().then((editable) => {
+              if (id != null && this.tabs.active?.id === id) this.vim.editableChanged(editable);
+            }).catch(() => {});
+          }
           this.reconcileRecord();
           this.recalculateLayout();
           this.render();
@@ -279,6 +322,11 @@ class Session {
             if (this.tabs.has(id)) continue;
             watcher.dispose();
             this.copyWatchers.delete(id);
+          }
+          for (const [id, page] of [...this.vimPages]) {
+            if (this.tabs.has(id)) continue;
+            page.dispose();
+            this.vimPages.delete(id);
           }
         },
         onActiveState: (state, urlChanged) => {
@@ -388,8 +436,51 @@ class Session {
   }
 
   private closeOrShutdown(id: number) {
-    if (this.tabs.count <= 1) this.shutdown();
-    else this.tabs.close(id);
+    if (this.tabs.count <= 1) {
+      this.shutdown();
+      return;
+    }
+    const url = this.tabs.get(id)?.state.url;
+    if (url && /^https?:\/\//.test(url)) {
+      this.closedTabs.push(url);
+      if (this.closedTabs.length > 20) this.closedTabs.shift();
+    }
+    this.tabs.close(id);
+  }
+
+  private restoreClosedTab() {
+    const url = this.closedTabs.pop();
+    if (!url) {
+      this.showToast("no closed tabs", "alert");
+      return;
+    }
+    this.tabs.create(url);
+  }
+
+  private activeVimPage(): VimPage | null {
+    const tab = this.tabs.active;
+    const handle = tab?.ref.current;
+    if (!tab || !handle) return null;
+    let page = this.vimPages.get(tab.id);
+    if (!page) {
+      page = new VimPage(handle, {
+        editableChanged: (editable) => {
+          if (this.tabs.active?.id === tab.id) this.vim.editableChanged(editable);
+        },
+      });
+      this.vimPages.set(tab.id, page);
+      void page.activate().catch((error) => {
+        this.showToast(error instanceof Error ? error.message : String(error), "failed");
+      });
+    }
+    return page;
+  }
+
+  private toggleVim() {
+    const leaving = this.vim.enabled;
+    this.vim.toggle();
+    if (!leaving) return;
+    for (const page of this.vimPages.values()) void page.deactivate().catch(() => {});
   }
 
   private syncTitle() {
@@ -402,6 +493,8 @@ class Session {
     this.shuttingDown = true;
     for (const record of this.records.values()) record.dispose();
     this.records.clear();
+    for (const page of this.vimPages.values()) page.dispose();
+    this.vimPages.clear();
     this.shownRecord = null;
     this.registry?.dispose();
     this.registry = null;
@@ -504,6 +597,7 @@ class Session {
         tabViews={this.tabViews()}
         tabActions={this.tabActions}
         devtools={this.devtoolsView()}
+        vim={this.vim.view()}
       />,
     );
   }
@@ -580,6 +674,7 @@ class Session {
     },
     pageMenuAction: (id) => this.runPageMenu(id),
     pageMenuClose: () => this.closePageMenu(),
+    vimHelpClose: () => this.vim.closeHelp(),
     settings: this.settings.actions,
     record: this.recordActions(),
   };
@@ -709,7 +804,7 @@ class Session {
 
   private handleKey(event: EngineKeyEvent): boolean {
     const handle = this.tabs.activeHandle;
-    if (event.kind === "release") return false;
+    if (event.kind === "release") return this.vim.handleKey(event);
     if (this.settings.recording) {
       this.settings.recordKey(event);
       return true;
@@ -777,6 +872,7 @@ class Session {
       return true;
     }
     if (!this.findOpen && this.activeRecord()?.handleKey(event)) return true;
+    if (this.vim.handleKey(event)) return true;
     if (event.key === "escape" && this.findOpen) {
       this.closeFind();
       return true;
@@ -843,6 +939,9 @@ class Session {
       }
       case "grab.toggle":
         void this.toggleGrab();
+        return;
+      case "vim.toggle":
+        this.toggleVim();
         return;
       case "zoom.in":
         this.applyZoom(1);
@@ -1345,6 +1444,7 @@ class Session {
       command("find"),
       command("record.toggle"),
       command("grab.toggle"),
+      command("vim.toggle"),
       command("devtools.toggle"),
       ...(devtoolsOpen
         ? [
@@ -1388,6 +1488,8 @@ class Session {
       }
       case "grab.toggle":
         return this.activeGrab()?.active ? "stop selection" : "send to agent";
+      case "vim.toggle":
+        return this.vim.enabled ? "leave vim mode" : "vim mode";
       case "devtools.toggle":
         return this.tabs.active?.devtools ? "close devtools" : "open devtools";
       default:
