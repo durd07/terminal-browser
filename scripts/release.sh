@@ -46,7 +46,7 @@ cp "$ROOT/scripts/apparmor.sh" "$STAGE/scripts/apparmor.sh"
 "$ROOT/scripts/generate-skill.sh"
 cp -R "$ROOT/skill/build" "$STAGE/skills"
 
-cp "$ROOT/assets/fonts/JetBrainsMono-Regular.ttf" "$STAGE/assets/fonts/"
+cp "$ROOT/assets/fonts/NotoSansMonoCJKsc-Regular.otf" "$STAGE/assets/fonts/"
 
 "$ROOT/scripts/copy-react-grab.sh"
 mkdir -p "$STAGE/assets/react-grab"

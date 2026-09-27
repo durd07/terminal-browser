@@ -104,7 +104,7 @@ export function createSession(ctx: SessionContext): SessionHandle {
 }
 
 
-const FONT_FILE = path.join("fonts", "JetBrainsMono-Regular.ttf");
+const FONT_FILE = path.join("fonts", "NotoSansMonoCJKsc-Regular.otf");
 
 function bundledFontPath(): string {
   const found = bundledAsset(FONT_FILE);
