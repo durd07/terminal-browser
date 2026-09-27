@@ -9,6 +9,8 @@ import type { ChromeActions, TabRow } from "./types";
 
 const ANIM_MS = 200;
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
+const WIDE_CHAR =
+  /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
 
 interface Entry {
   tab: TabRow;
@@ -150,6 +152,7 @@ export function TabStrip({
   const dotPulse = usePulse(tabs.some((tab) => tab.agentControlled && !tab.active));
   const label = (tab: TabRow) => (tab.active ? activeLabel || tab.title : tab.title);
   const charW = rem * 0.82 * 0.6;
+  const wideCharW = rem * 0.82;
   const slotW = rem * 0.85;
   const padX = rem * 0.7;
   const innerGap = rem * 0.35;
@@ -158,12 +161,19 @@ export function TabStrip({
   const minInactive = padX * 2 + slotW;
   const capInactive = rem * 10;
   const minActive = Math.min(rem * 10, avail);
+  const textWidth = (text: string) => {
+    let textW = 0;
+    for (const ch of text) {
+      if (textW >= 24 * charW) break;
+      textW += WIDE_CHAR.test(ch) ? wideCharW : charW;
+    }
+    return textW;
+  };
   const inactiveWidths = new Map<number, number>();
   let sum = 0;
   for (const tab of tabs) {
     if (tab.active) continue;
-    const intrinsic =
-      padX * 2 + slotW + innerGap + Math.min(label(tab).length, 24) * charW;
+    const intrinsic = padX * 2 + slotW + innerGap + textWidth(label(tab));
     const w = Math.min(Math.max(intrinsic, minInactive), capInactive);
     inactiveWidths.set(tab.id, w);
     sum += w;
@@ -182,7 +192,7 @@ export function TabStrip({
   // appear from nowhere on hover; it fits its content instead of taking the cap.
   const active = tabs.find((tab) => tab.active);
   const intrinsicActive =
-    padX * 2 + slotW + innerGap + (active ? label(active).length + 1 : 0) * charW;
+    padX * 2 + slotW + innerGap + (active ? textWidth(label(active)) + charW : 0);
   const activeWidth =
     tabs.length === 1
       ? Math.max(rem * 4, Math.min(intrinsicActive, avail))
